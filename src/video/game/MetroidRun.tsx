@@ -1,9 +1,11 @@
 /**
- * MetroidRun.tsx — palco do tema Super Metroid.
+ * MetroidRun.tsx — palco do tema Super Metroid (v0.1.1-r2)
  *
- * Caçador espacial correndo para a direita, pulando, atirando.
- * Criaturas alienígenas entram pela direita e somem ao ser atingidas.
- * Cada mês termina com a traversal de uma porta.
+ * Novidades:
+ * - Caçador percorre mais tela horizontal e verticalmente quando o mês é intenso
+ * - Ciclo de corrida mais expressivo com bounce vertical maior
+ * - Partículas de celebração ao destruir alienígenas
+ * - Fogos de artifício + mensagem final no outro
  */
 
 import React from "react";
@@ -11,48 +13,69 @@ import { interpolate } from "remotion";
 import { PixelArt } from "../art/PixelArt";
 import { HUNTER, ALIEN } from "../art/sprites";
 import type { ThemeSpec } from "../theme";
-import type { GamePhase, RunObject } from "./timeline";
+import type { GamePhase, RunObject, GameTimeline } from "./timeline";
 import { phaseLocalFrame, jumpLift } from "./timeline";
 import type { ScoreEvent } from "./timeline";
 import { recentEvents } from "./score";
 import { clamp } from "./prng";
+import { Fireworks, OutroMessage } from "./Fireworks";
 
 // ─────────────────────────────────────────────
 // Layout
 // ─────────────────────────────────────────────
-const GAME_TOP = 260;
-const GAME_BOTTOM = 1036;
-const GAME_H = GAME_BOTTOM - GAME_TOP;
+const GAME_TOP = 0;
+const GAME_H = 776;
 
-const FLOOR_Y = GAME_H - 100; // linha do chão
-const CHAR_X = 240;
+const FLOOR_Y = GAME_H - 100;
 const CHAR_SCALE = 11;
-const CHAR_W = 12 * CHAR_SCALE; // HUNTER: 12 cols
-const CHAR_H = 18 * CHAR_SCALE; // HUNTER: 18 rows
+const CHAR_W = 12 * CHAR_SCALE;
+const CHAR_H = 18 * CHAR_SCALE;
+
+const CHAR_X_MIN = 120;
+const CHAR_X_MAX = 600;
 
 // ─────────────────────────────────────────────
-// Animação de corrida — simula ciclo via transform
+// Intensidade
 // ─────────────────────────────────────────────
-const runPose = (frame: number) => {
-  const cycle = frame % 20;
-  if (cycle < 5) return { skewX: -4, translateY: 0 };
-  if (cycle < 10) return { skewX: 0, translateY: -6 };
-  if (cycle < 15) return { skewX: 4, translateY: 0 };
-  return { skewX: 0, translateY: -3 };
+const monthIntensity = (phase: GamePhase | null, allPhases: GamePhase[]): number => {
+  if (!phase || phase.count === 0) return 0;
+  const maxCount = Math.max(...allPhases.map((p) => p.count), 1);
+  return clamp(phase.count / maxCount, 0, 1);
 };
 
 // ─────────────────────────────────────────────
-// Projétil do caçador
+// Posição X do caçador
 // ─────────────────────────────────────────────
-const SHOT_SPEED = 24; // px/frame
-const SHOT_LIFEFRAMES = 45;
-
-type Shot = {
-  id: string;
-  startX: number;
-  startY: number;
-  startFrame: number;
+const charXAtFrame = (globalFrame: number, intensity: number): number => {
+  const range = CHAR_X_MAX - CHAR_X_MIN;
+  const amp = CHAR_X_MIN + range * intensity * 0.65;
+  const osc = Math.sin(globalFrame * (0.016 + intensity * 0.02)) * amp * 0.5;
+  return clamp(CHAR_X_MIN + amp * 0.25 + osc, CHAR_X_MIN, CHAR_X_MAX);
 };
+
+// ─────────────────────────────────────────────
+// Ciclo de corrida expressivo
+// ─────────────────────────────────────────────
+type RunPose = { skewX: number; translateY: number; rotateZ: number };
+
+const runPose = (frame: number, intensity: number): RunPose => {
+  const cycleLen = Math.round(18 - intensity * 5); // 18..13
+  const cycle = frame % cycleLen;
+  const t = cycle / cycleLen;
+  const bounceAmp = 5 + intensity * 20;
+  const translateY = -Math.abs(Math.sin(t * Math.PI)) * bounceAmp;
+  const skewX = Math.sin(t * Math.PI * 2) * (4 + intensity * 5);
+  const rotateZ = Math.sin(t * Math.PI * 2 + 0.6) * (2 + intensity * 3);
+  return { skewX, translateY, rotateZ };
+};
+
+// ─────────────────────────────────────────────
+// Tiros
+// ─────────────────────────────────────────────
+const SHOT_SPEED = 26;
+const SHOT_LIFEFRAMES = 48;
+
+type Shot = { id: string; startX: number; startY: number; startFrame: number };
 
 const buildShots = (phases: GamePhase[], introFrames: number): Shot[] => {
   const shots: Shot[] = [];
@@ -60,15 +83,13 @@ const buildShots = (phases: GamePhase[], introFrames: number): Shot[] => {
     if (!phase.hasActivity) continue;
     for (const obj of phase.objects) {
       const globalHit = phase.startFrame + obj.hitAt;
-      const travelFrames = Math.round((1920 - CHAR_X - CHAR_W) / SHOT_SPEED);
+      const travelFrames = Math.round((1920 - CHAR_X_MIN - CHAR_W) / SHOT_SPEED);
       const fireFrame = globalHit - travelFrames;
       if (fireFrame < introFrames) continue;
-
-      const charYEst = FLOOR_Y - CHAR_H + 10;
       shots.push({
         id: `shot-${phase.month}-${obj.id}`,
-        startX: CHAR_X + CHAR_W,
-        startY: charYEst + CHAR_H * 0.4,
+        startX: CHAR_X_MIN + CHAR_W,
+        startY: FLOOR_Y - CHAR_H + 10 + CHAR_H * 0.4,
         startFrame: fireFrame,
       });
     }
@@ -77,36 +98,50 @@ const buildShots = (phases: GamePhase[], introFrames: number): Shot[] => {
 };
 
 // ─────────────────────────────────────────────
-// Explosão alienígena (pisca e desaparece)
+// Partículas de celebração ao destruir criatura
 // ─────────────────────────────────────────────
-const AlienBurst: React.FC<{
-  x: number;
-  y: number;
-  age: number;
-  theme: ThemeSpec;
-}> = ({ x, y, age, theme }) => {
-  if (age > 20) return null;
-  const opacity = 1 - age / 20;
-  const spread = age * 5;
-
+const AlienBurst: React.FC<{ x: number; y: number; age: number; theme: ThemeSpec; big?: boolean }> = ({
+  x, y, age, theme, big = false,
+}) => {
+  if (age > 22) return null;
+  const count = big ? 8 : 5;
+  const spread = age * (big ? 7 : 5.5);
+  const opacity = 1 - age / 22;
   return (
     <>
-      {[0, 1, 2, 3, 4].map((i) => {
-        const angle = (i / 5) * Math.PI * 2 + age * 0.1;
-        const dx = Math.cos(angle) * spread;
-        const dy = Math.sin(angle) * spread;
+      {/* Flash */}
+      {age < 5 && (
+        <div
+          style={{
+            position: "absolute",
+            left: x - 14,
+            top: y - 14,
+            width: 28,
+            height: 28,
+            borderRadius: "50%",
+            background: "#ffffff",
+            opacity: (1 - age / 5) * 0.85,
+            boxShadow: `0 0 30px ${theme.colors.accent}`,
+          }}
+        />
+      )}
+      {Array.from({ length: count }, (_, i) => {
+        const angle = (i / count) * Math.PI * 2 + age * 0.1;
+        const px = x + Math.cos(angle) * spread;
+        const py = y + Math.sin(angle) * spread;
+        const size = big ? 12 : 8;
         return (
           <div
             key={i}
             style={{
               position: "absolute",
-              left: x + dx - 6,
-              top: y + dy - 6,
-              width: 12,
-              height: 12,
+              left: px - size / 2,
+              top: py - size / 2,
+              width: size,
+              height: size,
               background: i % 2 === 0 ? theme.colors.accent2 : theme.colors.accent,
               opacity: opacity * 0.9,
-              boxShadow: `0 0 12px ${theme.colors.glow}`,
+              boxShadow: `0 0 ${size * 2}px ${theme.colors.glow}`,
             }}
           />
         );
@@ -118,38 +153,24 @@ const AlienBurst: React.FC<{
 // ─────────────────────────────────────────────
 // Porta entre meses
 // ─────────────────────────────────────────────
-const SectorDoor: React.FC<{
-  x: number;
-  openProgress: number; // 0..1
-  theme: ThemeSpec;
-}> = ({ x, openProgress, theme }) => {
+const SectorDoor: React.FC<{ x: number; openProgress: number; theme: ThemeSpec }> = ({
+  x, openProgress, theme,
+}) => {
   const doorH = GAME_H * 0.6;
   const doorW = 60;
   const doorY = (GAME_H - doorH) / 2;
   const halfOpen = openProgress * (doorW / 2 + 10);
-
   return (
-    <div
-      style={{
-        position: "absolute",
-        left: x,
-        top: doorY,
-        width: doorW,
-        height: doorH,
-      }}
-    >
-      {/* Moldura */}
+    <div style={{ position: "absolute", left: x, top: doorY, width: doorW, height: doorH }}>
       <div
         style={{
           position: "absolute",
           inset: 0,
           border: `8px solid ${theme.colors.accent2}`,
-          background: "transparent",
           boxShadow: `0 0 30px ${theme.colors.glow}`,
           zIndex: 2,
         }}
       />
-      {/* Painel esquerdo */}
       <div
         style={{
           position: "absolute",
@@ -163,7 +184,6 @@ const SectorDoor: React.FC<{
           borderRight: `2px solid ${theme.colors.accent}44`,
         }}
       />
-      {/* Painel direito */}
       <div
         style={{
           position: "absolute",
@@ -177,7 +197,6 @@ const SectorDoor: React.FC<{
           borderLeft: `2px solid ${theme.colors.accent}44`,
         }}
       />
-      {/* Brilho ao abrir */}
       {openProgress > 0.3 && (
         <div
           style={{
@@ -196,13 +215,9 @@ const SectorDoor: React.FC<{
 // ─────────────────────────────────────────────
 // Score popup
 // ─────────────────────────────────────────────
-const ScorePopup: React.FC<{
-  event: ScoreEvent;
-  currentFrame: number;
-  x: number;
-  y: number;
-  theme: ThemeSpec;
-}> = ({ event, currentFrame, x, y, theme }) => {
+const ScorePopup: React.FC<{ event: ScoreEvent; currentFrame: number; x: number; y: number; theme: ThemeSpec }> = ({
+  event, currentFrame, x, y, theme,
+}) => {
   const age = currentFrame - event.frame;
   if (age < 0 || age > 28) return null;
   const opacity = interpolate(age, [0, 4, 24, 28], [0, 1, 1, 0], {
@@ -232,30 +247,36 @@ const ScorePopup: React.FC<{
 // ─────────────────────────────────────────────
 // Poeira de corrida
 // ─────────────────────────────────────────────
-const RunDust: React.FC<{ frame: number; color: string }> = ({ frame, color }) => {
-  const puffs = [0, 1, 2].map((i) => {
-    const age = (frame - i * 6) % 18;
-    if (age < 0 || age > 14) return null;
-    const opacity = (1 - age / 14) * 0.45;
-    const spread = age * 2.5;
-    return (
-      <div
-        key={i}
-        style={{
-          position: "absolute",
-          left: CHAR_X - 10 - spread + i * 6,
-          top: FLOOR_Y + 10,
-          width: 8 + age,
-          height: 6 + age * 0.4,
-          borderRadius: "50%",
-          background: color,
-          opacity,
-          filter: "blur(2px)",
-        }}
-      />
-    );
-  });
-  return <>{puffs}</>;
+const RunDust: React.FC<{ charX: number; frame: number; color: string; intensity: number }> = ({
+  charX, frame, color, intensity,
+}) => {
+  const count = 2 + Math.round(intensity * 3);
+  return (
+    <>
+      {Array.from({ length: count }, (_, i) => {
+        const age = (frame - i * 5) % 18;
+        if (age < 0 || age > 14) return null;
+        const op = (1 - age / 14) * (0.4 + intensity * 0.3);
+        const spread = age * (2 + intensity * 1.5);
+        return (
+          <div
+            key={i}
+            style={{
+              position: "absolute",
+              left: charX - 10 - spread + i * 6,
+              top: FLOOR_Y + 14,
+              width: 8 + age,
+              height: 6 + age * 0.4,
+              borderRadius: "50%",
+              background: color,
+              opacity: op,
+              filter: "blur(2px)",
+            }}
+          />
+        );
+      })}
+    </>
+  );
 };
 
 // ─────────────────────────────────────────────
@@ -268,6 +289,7 @@ type Props = {
   allPhases: GamePhase[];
   scoreEvents: ScoreEvent[];
   introFrames: number;
+  timeline: GameTimeline;
   isIntro: boolean;
   isOutro: boolean;
 };
@@ -279,21 +301,27 @@ export const MetroidRun: React.FC<Props> = ({
   allPhases,
   scoreEvents,
   introFrames,
+  timeline,
   isIntro,
   isOutro,
 }) => {
   const shots = buildShots(allPhases, introFrames);
+  const intensity = monthIntensity(phase, allPhases);
   const localFrame = phase ? phaseLocalFrame(phase, globalFrame) : globalFrame;
 
   // Pulo
-  const jumpHeight = phase ? jumpLift(phase, localFrame, 140) : 0;
+  const jumpHeight = phase ? jumpLift(phase, localFrame, 150) : 0;
   const isJumping = jumpHeight > 2;
-  const pose = runPose(isJumping ? 0 : localFrame);
 
-  // Posição Y do personagem
-  const charY = FLOOR_Y - CHAR_H + 10 - jumpHeight + pose.translateY;
+  // Posição X
+  const charX = isOutro
+    ? 800 + Math.sin(globalFrame * 0.04) * 100
+    : charXAtFrame(globalFrame, intensity);
 
-  // Tiro muzzle flash
+  const pose = runPose(isIntro || isOutro ? globalFrame : localFrame, isOutro ? 1 : intensity);
+  const charY = FLOOR_Y - CHAR_H + 10 - jumpHeight + (isJumping ? 0 : pose.translateY);
+
+  // Muzzle flash
   const recentShot = shots.find((s) => Math.abs(s.startFrame - globalFrame) < 4);
   const muzzleFlash = recentShot
     ? interpolate(Math.abs(recentShot.startFrame - globalFrame), [0, 4], [1, 0], {
@@ -302,30 +330,24 @@ export const MetroidRun: React.FC<Props> = ({
       })
     : 0;
 
-  // Projéteis ativos
   const activeShots = shots.filter((s) => {
     const age = globalFrame - s.startFrame;
     return age >= 0 && age < SHOT_LIFEFRAMES;
   });
 
-  // Criaturas e posições
   const visiblePhases = allPhases.filter(
     (p) => p.endFrame + 60 >= globalFrame && p.startFrame - 120 <= globalFrame,
   );
 
   const recent = recentEvents(scoreEvents, globalFrame, 30);
 
-  // Porta entre fases
   const doorPhasesWithDoor = phase
-    ? allPhases.filter(
-        (p) =>
-          p.month >= phase.month - 1 &&
-          p.month <= phase.month + 1,
-      )
+    ? allPhases.filter((p) => p.month >= phase.month - 1 && p.month <= phase.month + 1)
     : [];
 
-  // Chão animado
-  const scrollOffset = (globalFrame * 3.8) % 96;
+  const scrollOffset = (globalFrame * (3.8 + intensity * 3)) % 96;
+
+  const outroFrame = isOutro ? globalFrame - timeline.runEnd : -1;
 
   return (
     <div
@@ -361,8 +383,7 @@ export const MetroidRun: React.FC<Props> = ({
           right: 0,
           bottom: 0,
           top: FLOOR_Y + CHAR_H + 0,
-          background:
-            "repeating-linear-gradient(90deg, #0f0520 0 44px, #150829 44px 88px)",
+          background: "repeating-linear-gradient(90deg, #0f0520 0 44px, #150829 44px 88px)",
           backgroundPosition: `${-scrollOffset}px 0`,
         }}
       />
@@ -370,7 +391,8 @@ export const MetroidRun: React.FC<Props> = ({
       {/* Tiros */}
       {activeShots.map((shot) => {
         const age = globalFrame - shot.startFrame;
-        const x = shot.startX + age * SHOT_SPEED;
+        // Adjust shot startX to follow charX approximately
+        const x = charX + CHAR_W + age * SHOT_SPEED;
         if (x > 1960) return null;
         return (
           <div
@@ -390,7 +412,7 @@ export const MetroidRun: React.FC<Props> = ({
         );
       })}
 
-      {/* Criaturas e explosões */}
+      {/* Criaturas */}
       {visiblePhases.map((p) =>
         p.objects.map((obj) => {
           const globalSpawn = p.startFrame + obj.spawnAt;
@@ -400,21 +422,14 @@ export const MetroidRun: React.FC<Props> = ({
           const travelFrames = obj.hitAt - obj.spawnAt;
           const age = globalFrame - globalSpawn;
           const travelPct = travelFrames > 0 ? clamp(age / travelFrames, 0, 1) : 1;
-
-          const startX = 1900;
-          const endX = CHAR_X + CHAR_W + 60;
-          const x = interpolate(travelPct, [0, 1], [startX, endX]);
-          const baseY = FLOOR_Y - CHAR_H * 0.65 + obj.lane * 80;
+          const x = interpolate(travelPct, [0, 1], [1900, charX + CHAR_W + 60]);
+          const baseY = FLOOR_Y - CHAR_H * 0.65 + obj.lane * 90;
 
           const destroyed = globalFrame >= globalHit;
           const destroyAge = globalFrame - globalHit;
-
-          // Criatura pisca ao ser atingida
           const blinkOpacity =
             destroyAge >= 0 && destroyAge < 8 ? (Math.floor(destroyAge / 2) % 2 === 0 ? 0.2 : 1) : 1;
-
-          if (destroyed && destroyAge > 20) return null;
-
+          if (destroyed && destroyAge > 22) return null;
           const creatureScale = obj.variant === 2 ? 9 : 7;
 
           return (
@@ -426,7 +441,7 @@ export const MetroidRun: React.FC<Props> = ({
                     left: x,
                     top: baseY,
                     opacity: blinkOpacity,
-                    filter: `drop-shadow(0 0 8px rgba(192,77,240,0.6))`,
+                    filter: "drop-shadow(0 0 8px rgba(192,77,240,0.6))",
                     zIndex: 5,
                   }}
                 >
@@ -438,6 +453,7 @@ export const MetroidRun: React.FC<Props> = ({
                   y={baseY + (10 * creatureScale) / 2}
                   age={destroyAge}
                   theme={theme}
+                  big={obj.variant === 2}
                 />
               )}
             </React.Fragment>
@@ -447,21 +463,15 @@ export const MetroidRun: React.FC<Props> = ({
 
       {/* Portas */}
       {doorPhasesWithDoor.map((p) => {
-        // A porta aparece nos últimos 40 frames da fase
         const doorStartFrame = p.endFrame - 40;
         if (globalFrame < doorStartFrame - 60 || globalFrame > p.endFrame + 30) return null;
-
-        // Posição X baseada no progresso da fase
-        const doorGlobalX = 1600; // fixo à direita
-        const openProgress =
-          globalFrame >= doorStartFrame
-            ? clamp((globalFrame - doorStartFrame) / 40, 0, 1)
-            : 0;
-
+        const openProgress = globalFrame >= doorStartFrame
+          ? clamp((globalFrame - doorStartFrame) / 40, 0, 1)
+          : 0;
         return (
           <SectorDoor
             key={`door-${p.month}`}
-            x={doorGlobalX}
+            x={1600}
             openProgress={openProgress}
             theme={theme}
           />
@@ -470,7 +480,7 @@ export const MetroidRun: React.FC<Props> = ({
 
       {/* Score popups */}
       {recent.map((ev) => {
-        let x = CHAR_X + CHAR_W + 40;
+        let x = charX + CHAR_W + 40;
         let y = charY;
         for (const p of visiblePhases) {
           const obj = p.objects.find((o) => o.id === ev.objectId);
@@ -478,8 +488,8 @@ export const MetroidRun: React.FC<Props> = ({
             const travelFrames = obj.hitAt - obj.spawnAt;
             const age = globalFrame - (p.startFrame + obj.spawnAt);
             const travelPct = travelFrames > 0 ? clamp(age / travelFrames, 0, 1) : 1;
-            x = interpolate(travelPct, [0, 1], [1900, CHAR_X + CHAR_W + 60]) + 30;
-            y = FLOOR_Y - CHAR_H * 0.65 + obj.lane * 80;
+            x = interpolate(travelPct, [0, 1], [1900, charX + CHAR_W + 60]) + 30;
+            y = FLOOR_Y - CHAR_H * 0.65 + obj.lane * 90;
             break;
           }
         }
@@ -497,21 +507,26 @@ export const MetroidRun: React.FC<Props> = ({
 
       {/* Poeira */}
       {!isJumping && (
-        <RunDust frame={localFrame} color="rgba(53,240,192,0.35)" />
+        <RunDust
+          charX={charX}
+          frame={localFrame}
+          color="rgba(53,240,192,0.35)"
+          intensity={intensity}
+        />
       )}
 
       {/* Caçador */}
       <div
         style={{
           position: "absolute",
-          left: CHAR_X,
+          left: charX,
           top: charY,
-          transform: `skewX(${isJumping ? 0 : pose.skewX}deg)`,
+          transform: `skewX(${isJumping ? 0 : pose.skewX}deg) rotate(${isJumping ? -10 : pose.rotateZ}deg)`,
           transformOrigin: "bottom center",
           filter:
             muzzleFlash > 0
-              ? `drop-shadow(0 0 20px ${theme.colors.accent}) brightness(${1 + muzzleFlash * 0.6})`
-              : `drop-shadow(0 0 14px rgba(53,240,192,0.4))`,
+              ? `drop-shadow(0 0 22px ${theme.colors.accent}) brightness(${1 + muzzleFlash * 0.7})`
+              : `drop-shadow(0 0 14px rgba(53,240,192,0.45)) drop-shadow(2px 4px 6px rgba(0,0,0,0.5))`,
           zIndex: 8,
         }}
       >
@@ -523,7 +538,7 @@ export const MetroidRun: React.FC<Props> = ({
         <div
           style={{
             position: "absolute",
-            left: CHAR_X + CHAR_W - 4,
+            left: charX + CHAR_W - 4,
             top: charY + CHAR_H * 0.35,
             width: 28,
             height: 28,
@@ -536,8 +551,34 @@ export const MetroidRun: React.FC<Props> = ({
         />
       )}
 
-      {/* Intro/Outro text */}
-      {(isIntro || isOutro) && (
+      {/* Fogos de artifício no outro */}
+      {isOutro && outroFrame >= 0 && (
+        <Fireworks
+          outroFrame={outroFrame}
+          themeId={theme.id}
+          seed={timeline.seed}
+          stageW={1920}
+          stageH={GAME_H}
+        />
+      )}
+
+      {/* Mensagem final */}
+      {isOutro && outroFrame >= 0 && (
+        <OutroMessage
+          outroFrame={outroFrame}
+          themeId={theme.id}
+          login={timeline.login}
+          totalContribs={timeline.baseTotal}
+          year={timeline.year}
+          accentColor={theme.colors.accent}
+          glowColor={theme.colors.glow}
+          fontDisplay={theme.fonts.display}
+          fontNarrative={theme.fonts.narrative}
+        />
+      )}
+
+      {/* Intro text */}
+      {isIntro && (
         <div
           style={{
             position: "absolute",
@@ -552,7 +593,7 @@ export const MetroidRun: React.FC<Props> = ({
             textShadow: `0 0 28px ${theme.colors.glow}`,
           }}
         >
-          {isIntro ? "INICIANDO MISSÃO" : "MISSÃO CONCLUÍDA"}
+          INICIANDO MISSÃO
         </div>
       )}
     </div>

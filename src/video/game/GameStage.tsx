@@ -134,6 +134,7 @@ export const GameStage: React.FC<Props> = ({ stats, theme: themeId }) => {
             globalFrame={frame}
             allPhases={timeline.phases}
             scoreEvents={timeline.scoreEvents}
+            timeline={timeline}
             isIntro={isIntro}
             isOutro={isOutro}
           />
@@ -146,6 +147,7 @@ export const GameStage: React.FC<Props> = ({ stats, theme: themeId }) => {
             allPhases={timeline.phases}
             scoreEvents={timeline.scoreEvents}
             introFrames={timeline.introFrames}
+            timeline={timeline}
             isIntro={isIntro}
             isOutro={isOutro}
           />
@@ -158,6 +160,7 @@ export const GameStage: React.FC<Props> = ({ stats, theme: themeId }) => {
             allPhases={timeline.phases}
             scoreEvents={timeline.scoreEvents}
             introFrames={timeline.introFrames}
+            timeline={timeline}
             isIntro={isIntro}
             isOutro={isOutro}
           />
