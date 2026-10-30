@@ -9,3 +9,6 @@ data/jobs.json
 
 # Prompt master — instrução de implementação local, não versionado
 prompt_master.md
+
+# Documentação interna — prompts, briefings e rascunhos, não versionados
+docs/
