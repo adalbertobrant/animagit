@@ -3,9 +3,17 @@
 > Prompt de implementação. Leia este arquivo inteiro antes de editar código.
 > Briefing de produto: `docs/PROMPT-0.1.1.md`. Este arquivo descreve o estado real do repositório e o que falta para o vídeo parecer um jogo.
 
+## O que o programa é
+
+Não é um jogo jogável. Não há input, fase para o usuário passar nem loop de gameplay.
+
+O programa lê os dados do ano da pessoa no GitHub, monta uma animação que **parece** um jogo (Pitfall, nave, Metroid) e, no final, grava um MP4. A landing, a API e a CLI continuam iguais: o usuário escolhe o login e o tema; o Remotion renderiza o arquivo na máquina.
+
+“Jogo”, neste documento, é só a linguagem visual dessa animação.
+
 ## Missão
 
-Fazer os três temas (`space`, `metroid`, `pitfall`) parecerem um jogo que se joga sozinho durante ~53 s.
+Fazer os três temas (`space`, `metroid`, `pitfall`) parecerem essa animação durante ~53 s.
 
 O texto narrativo fica na faixa superior. O palco abaixo mostra, o tempo todo, o personagem ou a nave em ação: correndo, pulando, atirando e coletando. Cada objeto coletado ou destruído representa um dado real do ano no GitHub. O placar sobe na hora do evento, não aparece já no total.
 
@@ -158,8 +166,11 @@ Não criar tema novo. Não adicionar controle do usuário. Não trocar o Remotio
 
 ## Decisões já tomadas
 
-1. Câmera fixa, mundo scrollando. O personagem não atravessa a tela inteira e some.
-2. Objetos agrupam contribuições. Um mês de 38 contribuições não spawna 38 moedas.
-3. A faixa de texto é permanente; o conteúdo muda por fase.
-4. As cenas antigas saem da composição e permanecem no disco.
-5. Duração global continua ~1596 frames a 30 fps.
+1. O resultado é um MP4 automático a partir dos dados do GitHub. Ninguém joga.
+2. Câmera fixa, mundo scrollando. O personagem não atravessa a tela inteira e some.
+3. Objetos agrupam contribuições: até ~16 por mês, cada um valendo vários pontos. Um mês de 38 contribuições não spawna 38 moedas.
+4. Desenhar 2–4 frames originais de corrida, tiro e moeda no formato `rows` + paleta já usado em `sprites.ts`.
+5. Sintetizar os SFX locais (`shoot`, `hit`, `coin`, `jump`, `levelup`, `bonus`, `finish`) junto com a animação.
+6. A faixa de texto é permanente; o conteúdo muda por fase.
+7. As cenas antigas saem da composição e permanecem no disco.
+8. Duração global continua ~1596 frames a 30 fps.
