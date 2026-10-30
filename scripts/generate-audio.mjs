@@ -287,3 +287,83 @@ for (const [name, buffer] of Object.entries(tracks)) {
   console.log(`[audio] ${name}.wav — ${seconds}s — ${(buffer.length * 2 / 1024).toFixed(0)} KiB`);
 }
 console.log("[audio] trilhas originais geradas em public/audio");
+
+// ────────────────────────────────────────────────────────────
+// SFX — efeitos sonoros curtos para o GameStage v0.1.1
+// Exportados em public/audio/sfx/
+// ────────────────────────────────────────────────────────────
+
+const sfxDir = resolve(outDir, "sfx");
+await mkdir(sfxDir, { recursive: true });
+
+/**
+ * Sintetiza um WAV curto a partir de uma lista de addNote/addNoise calls.
+ */
+const makeSfx = (durationSec, fillFn, peak = 0.75) => {
+  const buf = makeBuffer(durationSec);
+  fillFn(buf);
+  return normalize(buf, peak);
+};
+
+// shoot — disparo rápido (laser descendente)
+const sfxShoot = makeSfx(0.14, (b) => {
+  addNote(b, { start: 0, duration: 0.12, midi: n("A", 6), gain: 0.2, wave: "square" });
+  addNote(b, { start: 0.03, duration: 0.09, midi: n("E", 6), gain: 0.15, wave: "square" });
+});
+await writeFile(resolve(sfxDir, "shoot.wav"), toWav(sfxShoot));
+console.log("[sfx] shoot.wav");
+
+// hit — impacto em meteoro/criatura
+const sfxHit = makeSfx(0.18, (b) => {
+  addNoise(b, { start: 0, duration: 0.14, gain: 0.18, decay: 0.06, color: 0.6 });
+  addNote(b, { start: 0, duration: 0.1, midi: n("C", 3), gain: 0.14, wave: "square" });
+});
+await writeFile(resolve(sfxDir, "hit.wav"), toWav(sfxHit));
+console.log("[sfx] hit.wav");
+
+// coin — coleta de moeda/tesouro (dois tons ascendentes)
+const sfxCoin = makeSfx(0.22, (b) => {
+  addNote(b, { start: 0, duration: 0.08, midi: n("G", 5), gain: 0.2, wave: "square" });
+  addNote(b, { start: 0.09, duration: 0.1, midi: n("C", 6), gain: 0.22, wave: "square" });
+});
+await writeFile(resolve(sfxDir, "coin.wav"), toWav(sfxCoin));
+console.log("[sfx] coin.wav");
+
+// jump — pulo curto (tom ascendente)
+const sfxJump = makeSfx(0.18, (b) => {
+  addNote(b, { start: 0, duration: 0.16, midi: n("F", 5), gain: 0.18, wave: "triangle", vibrato: 0.01 });
+  addNote(b, { start: 0.06, duration: 0.1, midi: n("A", 5), gain: 0.12, wave: "triangle" });
+});
+await writeFile(resolve(sfxDir, "jump.wav"), toWav(sfxJump));
+console.log("[sfx] jump.wav");
+
+// levelup — troca de mês/setor (fanfarra curta de 3 notas)
+const sfxLevelup = makeSfx(0.48, (b) => {
+  addNote(b, { start: 0, duration: 0.12, midi: n("C", 5), gain: 0.18, wave: "square" });
+  addNote(b, { start: 0.14, duration: 0.12, midi: n("E", 5), gain: 0.18, wave: "square" });
+  addNote(b, { start: 0.28, duration: 0.18, midi: n("G", 5), gain: 0.2, wave: "square" });
+});
+await writeFile(resolve(sfxDir, "levelup.wav"), toWav(sfxLevelup));
+console.log("[sfx] levelup.wav");
+
+// bonus — PR/issue especial (acorde mais brilhante)
+const sfxBonus = makeSfx(0.36, (b) => {
+  addNote(b, { start: 0, duration: 0.3, midi: n("E", 6), gain: 0.18, wave: "square" });
+  addNote(b, { start: 0.04, duration: 0.28, midi: n("G", 6), gain: 0.14, wave: "square" });
+  addNote(b, { start: 0.08, duration: 0.24, midi: n("B", 6), gain: 0.12, wave: "square" });
+});
+await writeFile(resolve(sfxDir, "bonus.wav"), toWav(sfxBonus));
+console.log("[sfx] bonus.wav");
+
+// finish — placar final (arpejo ascendente resoluto)
+const sfxFinish = makeSfx(1.1, (b) => {
+  const notes = [n("C", 5), n("E", 5), n("G", 5), n("C", 6)];
+  notes.forEach((midi, i) => {
+    addNote(b, { start: i * 0.18, duration: 0.22, midi, gain: 0.2, wave: "square" });
+  });
+  addNote(b, { start: 0.8, duration: 0.28, midi: n("C", 6), gain: 0.18, wave: "triangle", vibrato: 0.005 });
+});
+await writeFile(resolve(sfxDir, "finish.wav"), toWav(sfxFinish));
+console.log("[sfx] finish.wav");
+
+console.log("[sfx] efeitos gerados em public/audio/sfx/");
