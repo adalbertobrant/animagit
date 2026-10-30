@@ -6,3 +6,6 @@ data/jobs.json
 .env
 .DS_Store
 *.log
+
+# Prompt master — instrução de implementação local, não versionado
+prompt_master.md
