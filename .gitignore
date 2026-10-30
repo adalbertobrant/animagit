@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.remotion-bundle/
+out/
+data/jobs.json
+.env
+.DS_Store
+*.log

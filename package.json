@@ -1,0 +1,50 @@
+{
+  "name": "anima-github-local",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "GitHub Wrapped 100% local com três temas: espaço, Super Metroid e Pitfall.",
+  "scripts": {
+    "postinstall": "node scripts/copy-fonts.mjs",
+    "setup": "node scripts/copy-fonts.mjs && node scripts/generate-audio.mjs && remotion browser ensure",
+    "dev": "tsx watch --clear-screen=false src/server/index.ts",
+    "start": "tsx scripts/start.ts",
+    "web": "vite",
+    "build": "npm run typecheck && vite build",
+    "typecheck": "tsc --noEmit",
+    "studio": "remotion studio src/video/index.ts",
+    "fetch": "tsx scripts/fetch.ts",
+    "render": "tsx scripts/render.ts",
+    "audio": "node scripts/generate-audio.mjs",
+    "snapshot": "tsx scripts/fetch.ts --username adalbertobrant"
+  },
+  "dependencies": {
+    "@fontsource/orbitron": "^5.2.6",
+    "@fontsource/press-start-2p": "^5.2.6",
+    "@fontsource/vt323": "^5.2.6",
+    "@remotion/bundler": "4.0.539",
+    "@remotion/cli": "4.0.539",
+    "@remotion/fonts": "4.0.539",
+    "@remotion/player": "4.0.539",
+    "@remotion/renderer": "4.0.539",
+    "@remotion/transitions": "4.0.539",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "4.0.539"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.0",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
