@@ -4,6 +4,8 @@ import { staticFile } from "remotion";
 export const DISPLAY_SPACE = "'Orbitron', sans-serif";
 export const DISPLAY_PIXEL = "'Press Start 2P', monospace";
 export const BODY_PIXEL = "'VT323', monospace";
+/** Fonte de leitura da faixa narrativa, HUD e legendas. */
+export const NARRATIVE = "'Atkinson Hyperlegible', 'Arial', sans-serif";
 
 let started = false;
 
@@ -34,5 +36,15 @@ export const loadVideoFonts = (): void => {
     family: "VT323",
     url: staticFile("fonts/vt323-400.woff2"),
     weight: "400",
+  });
+  loadFont({
+    family: "Atkinson Hyperlegible",
+    url: staticFile("fonts/atkinson-hyperlegible-400.woff2"),
+    weight: "400",
+  });
+  loadFont({
+    family: "Atkinson Hyperlegible",
+    url: staticFile("fonts/atkinson-hyperlegible-700.woff2"),
+    weight: "700",
   });
 };

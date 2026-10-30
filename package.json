@@ -19,6 +19,7 @@
     "snapshot": "tsx scripts/fetch.ts --username adalbertobrant"
   },
   "dependencies": {
+    "@fontsource/atkinson-hyperlegible": "^5.3.0",
     "@fontsource/orbitron": "^5.2.6",
     "@fontsource/press-start-2p": "^5.2.6",
     "@fontsource/vt323": "^5.2.6",

@@ -29,7 +29,7 @@ export type ThemeSpec = {
   name: string;
   universe: string;
   tagline: string;
-  fonts: { display: string; body: string };
+  fonts: { display: string; body: string; narrative: string };
   colors: Palette;
   audio: string;
   transition: "fade" | "wipe" | "slide";
@@ -50,6 +50,7 @@ export const THEMES: Record<ThemeId, ThemeSpec> = {
     fonts: {
       display: "'Orbitron', 'Arial Black', sans-serif",
       body: "'VT323', 'Courier New', monospace",
+      narrative: "'Atkinson Hyperlegible', 'Arial', sans-serif",
     },
     colors: {
       bg: "#03020f",
@@ -86,6 +87,7 @@ export const THEMES: Record<ThemeId, ThemeSpec> = {
     fonts: {
       display: "'Press Start 2P', 'Courier New', monospace",
       body: "'VT323', 'Courier New', monospace",
+      narrative: "'Atkinson Hyperlegible', 'Arial', sans-serif",
     },
     colors: {
       bg: "#070312",
@@ -122,6 +124,7 @@ export const THEMES: Record<ThemeId, ThemeSpec> = {
     fonts: {
       display: "'Press Start 2P', 'Courier New', monospace",
       body: "'VT323', 'Courier New', monospace",
+      narrative: "'Atkinson Hyperlegible', 'Arial', sans-serif",
     },
     colors: {
       bg: "#080a05",

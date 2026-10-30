@@ -16,6 +16,14 @@ const fonts = [
   ["@fontsource/orbitron/files/orbitron-latin-900-normal.woff2", "orbitron-900.woff2"],
   ["@fontsource/press-start-2p/files/press-start-2p-latin-400-normal.woff2", "press-start-2p-400.woff2"],
   ["@fontsource/vt323/files/vt323-latin-400-normal.woff2", "vt323-400.woff2"],
+  [
+    "@fontsource/atkinson-hyperlegible/files/atkinson-hyperlegible-latin-400-normal.woff2",
+    "atkinson-hyperlegible-400.woff2",
+  ],
+  [
+    "@fontsource/atkinson-hyperlegible/files/atkinson-hyperlegible-latin-700-normal.woff2",
+    "atkinson-hyperlegible-700.woff2",
+  ],
 ];
 
 await mkdir(outDir, { recursive: true });
