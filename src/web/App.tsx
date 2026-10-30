@@ -22,6 +22,7 @@ import {
   type JobView,
   type StatsResponse,
 } from "./api";
+import { GitRunner } from "./game/GitRunner";
 
 const THEME_SWATCHES: Record<ThemeId, [string, string, string]> = {
   space: ["#5eeaff", "#ff5cd6", "#ffd166"],
@@ -104,6 +105,7 @@ const StatChip: React.FC<{ label: string; value: string; accent?: boolean }> = (
 );
 
 export const App: React.FC = () => {
+  const [gameOpen, setGameOpen] = useState(false);
   const [config, setConfig] = useState<ConfigResponse | null>(null);
   const [username, setUsername] = useState("adalbertobrant");
   const [stats, setStats] = useState<StatsResponse | null>(null);
@@ -686,6 +688,50 @@ export const App: React.FC = () => {
           </div>
         </section>
       </main>
+
+      {/* ── Botão flutuante: jogar Git Runner ── */}
+      <button
+        onClick={() => setGameOpen(true)}
+        style={{
+          position: "fixed",
+          bottom: 32,
+          right: 32,
+          zIndex: 1000,
+          background: "linear-gradient(135deg, #ffd23f, #e8590c)",
+          border: "none",
+          borderRadius: 8,
+          padding: "14px 22px",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          boxShadow: "0 4px 24px rgba(255,210,63,0.45), 0 2px 8px rgba(0,0,0,0.5)",
+          transition: "transform 0.15s, box-shadow 0.15s",
+        }}
+        onMouseEnter={e => {
+          (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.07)";
+          (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 6px 32px rgba(255,210,63,0.7), 0 2px 8px rgba(0,0,0,0.5)";
+        }}
+        onMouseLeave={e => {
+          (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)";
+          (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 24px rgba(255,210,63,0.45), 0 2px 8px rgba(0,0,0,0.5)";
+        }}
+        aria-label="Jogar Git Runner"
+      >
+        <span style={{ fontSize: 22 }}>🕹️</span>
+        <span style={{
+          fontFamily: "'Press Start 2P', monospace",
+          fontSize: 11,
+          color: "#0d1117",
+          letterSpacing: "0.05em",
+          lineHeight: 1.4,
+        }}>
+          JOGAR<br />GIT RUNNER
+        </span>
+      </button>
+
+      {/* ── Overlay do jogo ── */}
+      {gameOpen && <GitRunner onClose={() => setGameOpen(false)} />}
 
       <footer className="footer">
         <span>
