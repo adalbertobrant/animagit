@@ -260,9 +260,9 @@ export const OutroMessage: React.FC<{
     extrapolateRight: "clamp",
   });
 
-  // Mensagem open source: type-on a partir do frame 80
+  // Mensagem open source: type-on a partir do frame 80, velocidade mais lenta (+2 s de leitura)
   const TYPE_START = 80;
-  const TYPE_SPEED = 2.2; // frames por caractere
+  const TYPE_SPEED = 3.2; // frames por caractere (mais lento = mais tempo para ler)
   const charsVisible = Math.floor(Math.max(0, outroFrame - TYPE_START) / TYPE_SPEED);
   const visibleText = FINAL_MESSAGE.slice(0, charsVisible);
   const cursorVisible = charsVisible < FINAL_MESSAGE.length && outroFrame % 4 < 3;

@@ -13,8 +13,8 @@ export const HUD_HEIGHT = VIDEO_HEIGHT - GAME_BOTTOM;
 
 /** Abertura curta e placar final. O restante é a corrida mensal. */
 export const INTRO_FRAMES = 120;
-export const OUTRO_FRAMES = 186;
-export const RUN_FRAMES = 1596 - INTRO_FRAMES - OUTRO_FRAMES;
+export const OUTRO_FRAMES = 246; // +60 frames (2 s extra para a mensagem final)
+export const RUN_FRAMES = 1596 - INTRO_FRAMES - 186; // RUN_FRAMES mantido; TOTAL cresce
 
 export const TRANSITION_FRAMES = 24;
 
@@ -38,6 +38,5 @@ export const SCENE_ORDER = [
   "outro",
 ] as const;
 
-const SUM = Object.values(SCENE_DURATIONS).reduce((total, value) => total + value, 0);
-
-export const TOTAL_FRAMES = SUM - (SCENE_ORDER.length - 1) * TRANSITION_FRAMES;
+// TOTAL_FRAMES = INTRO + RUN + OUTRO (novo cálculo direto, não mais via SCENE_DURATIONS)
+export const TOTAL_FRAMES = INTRO_FRAMES + RUN_FRAMES + OUTRO_FRAMES;
