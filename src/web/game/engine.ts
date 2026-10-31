@@ -17,6 +17,12 @@ const MOVE_SPEED    = 3.8;
 const SCROLL_SPEED  = 2.8;
 const GROUND_Y      = CANVAS_H - 90; // Y do topo do chão
 
+// Quique ao pisar em cima de uma PR box (não tira coração)
+const STOMP_BOUNCE  = -10;
+
+// Distância (px) em que uma PR box conta como "conflito por perto"
+export const CONFLICT_RANGE = 320;
+
 // Largura do nível em pixels (campo scrollável)
 const LEVEL_WIDTH   = 6000;
 
@@ -25,7 +31,7 @@ const CODES_FOR_COMMIT = 5;
 
 // ─── Tipos ────────────────────────────────────────────────────────────
 
-export type GameStatus = "idle" | "playing" | "git-workflow" | "gameover" | "win";
+export type GameStatus = "idle" | "playing" | "git-workflow" | "resolving" | "gameover" | "win";
 
 export type GitStep = "add" | "commit" | "push" | "done";
 
@@ -252,6 +258,9 @@ export const tick = (state: GameState, input: InputState): GameState => {
 
   if (s.status === "gameover" || s.status === "win") return s;
 
+  // ── conflito aberto: tudo congelado até o jogador responder ──
+  if (s.status === "resolving") return state;
+
   // ── git workflow animation ──
   if (s.status === "git-workflow") {
     s.gitTimer--;
@@ -310,7 +319,7 @@ export const tick = (state: GameState, input: InputState): GameState => {
   // ── invencibilidade ──
   if (p.invincible > 0) p.invincible--;
 
-  const pe = playerEntity(s);
+  let pe = playerEntity(s);
 
   // ── coleta de estrelas ──
   s.stars = s.stars.map(star => {
@@ -361,15 +370,27 @@ export const tick = (state: GameState, input: InputState): GameState => {
     if (newY >= GROUND_Y - 80) vy = 0;
 
     const newPR = { ...pr, frame: newFrame, vy, y: newY };
+    const box = { x: pr.x, y: pr.y, w: pr.w, h: pr.h };
 
     // colisão com jogador
-    if (p.invincible === 0 && overlaps(pe, { x: pr.x, y: pr.y, w: pr.w, h: pr.h })) {
-      s.lives--;
-      p.invincible = 90;
-      p.vy = -8; // knockback
-      s.floatingTexts.push({ x: p.x - s.cameraX - 10, y: p.y - 20, text: "PR conflict! -1♥", life: 70, color: "#ff5c6c" });
-      if (s.lives <= 0) {
-        s.status = "gameover";
+    if (overlaps(pe, box)) {
+      // veio de cima, caindo? é pisada: quica sem perder coração
+      const prevBottom = p.y - p.vy + 110;
+      const stomped = p.vy > 0 && prevBottom <= box.y + 14;
+
+      if (stomped) {
+        p.y        = box.y - 110;
+        p.vy       = STOMP_BOUNCE;
+        p.onGround = false;
+        pe = playerEntity(s);
+      } else if (p.invincible === 0) {
+        s.lives--;
+        p.invincible = 90;
+        p.vy = -8; // knockback
+        s.floatingTexts.push({ x: p.x - s.cameraX - 10, y: p.y - 20, text: "PR conflict! -1♥", life: 70, color: "#ff5c6c" });
+        if (s.lives <= 0) {
+          s.status = "gameover";
+        }
       }
     }
     return newPR;
@@ -384,6 +405,82 @@ export const tick = (state: GameState, input: InputState): GameState => {
   }
 
   return s;
+};
+
+// ─── Resolução de conflito (git rebase / git merge) ───────────────────
+//
+// Fluxo: no ar, perto de uma PR box, ENTER abre o prompt e congela o jogo.
+// O jogador digita um comando git válido; ENTER de novo resolve o conflito
+// (box morre, +200, sem perder coração) ou, se o comando for inválido,
+// custa 1 coração.
+
+const distanceToPlayer = (s: GameState, pr: PRBox): number =>
+  Math.abs(pr.x + pr.w / 2 - (s.player.x + 26));
+
+const nearestConflict = (s: GameState): PRBox | undefined =>
+  s.prBoxes
+    .filter(pr => !pr.dead && distanceToPlayer(s, pr) <= CONFLICT_RANGE)
+    .sort((a, b) => distanceToPlayer(s, a) - distanceToPlayer(s, b))[0];
+
+/** Só dá para resolver conflito no ar, com uma PR box por perto. */
+export const canResolveConflict = (s: GameState): boolean =>
+  s.status === "playing" && !s.player.onGround && nearestConflict(s) !== undefined;
+
+export const beginConflict = (s: GameState): GameState =>
+  canResolveConflict(s) ? { ...s, status: "resolving" } : s;
+
+export const cancelConflict = (s: GameState): GameState =>
+  s.status === "resolving" ? { ...s, status: "playing" } : s;
+
+/**
+ * Comandos aceitos: `rebase`/`merge`, com ou sem o prefixo `git`.
+ * Argumento opcional: uma branch/ref (`origin/main`, `HEAD~2`) ou uma flag
+ * conhecida (`--abort`, `--continue`, `-i`, ...). `git push` não resolve.
+ */
+const GIT_RESOLUTION =
+  /^(git )?(rebase|merge)(\s+(-[a-z]\b.*|--(abort|continue|skip|interactive|no-edit|no-ff|ff-only)\b.*|[^-\s]\S*))?$/i;
+
+export const isValidGitResolution = (answer: string): boolean =>
+  GIT_RESOLUTION.test(answer.trim().replace(/\s+/g, " "));
+
+export const resolveConflict = (s: GameState, answer: string): GameState => {
+  if (s.status !== "resolving") return s;
+
+  const next: GameState = {
+    ...s,
+    status: "playing",
+    player: { ...s.player },
+    floatingTexts: [...s.floatingTexts],
+  };
+
+  if (!isValidGitResolution(answer)) {
+    next.lives = Math.max(0, next.lives - 1);
+    next.player.invincible = 90;
+    next.floatingTexts.push({
+      x: next.player.x - next.cameraX - 30,
+      y: next.player.y - 20,
+      text: "comando inválido! -1♥",
+      life: 90,
+      color: "#ff5c6c",
+    });
+    if (next.lives <= 0) next.status = "gameover";
+    return next;
+  }
+
+  const target = nearestConflict(next);
+  if (target) {
+    next.prBoxes = next.prBoxes.map(pr => (pr === target ? { ...pr, dead: true } : pr));
+    next.score += 200;
+    next.floatingTexts.push({
+      x: next.player.x - next.cameraX - 60,
+      y: next.player.y - 30,
+      text: "conflito resolvido! +200",
+      life: 100,
+      color: "#38c950",
+    });
+  }
+  next.player.invincible = Math.max(next.player.invincible, 60);
+  return next;
 };
 
 // ─── Render ───────────────────────────────────────────────────────────
@@ -493,6 +590,15 @@ export const render = (ctx: CanvasRenderingContext2D, s: GameState): void => {
       charKey = charKeys[Math.min(p.animFrame, 7)] ?? "char-1";
     }
     drawImg(ctx, charKey, screenX, p.y, 56, 112, p.facing === -1);
+  }
+
+  // ── dica: conflito ao alcance ──
+  if (canResolveConflict(s)) {
+    ctx.fillStyle = "#ffd23f";
+    ctx.font      = "12px 'Press Start 2P', monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("ENTER: resolver conflito", screenX + 28, p.y - 18);
+    ctx.textAlign = "left";
   }
 
   // ── HUD: vidas ──

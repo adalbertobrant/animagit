@@ -15,9 +15,13 @@ import {
   CANVAS_H,
   GameState,
   InputState,
+  beginConflict,
+  canResolveConflict,
+  cancelConflict,
   initialState,
   loadSprites,
   render,
+  resolveConflict,
   tick,
 } from "./engine";
 
@@ -34,6 +38,17 @@ export const GitRunner: React.FC<Props> = ({ onClose }) => {
   const [loaded, setLoaded]   = useState(false);
   const [status, setStatus]   = useState<GameState["status"]>("playing");
 
+  // ── prompt de resolução de conflito ──
+  const [promptOpen, setPromptOpen] = useState(false);
+  const [answer, setAnswer]         = useState("");
+  const promptRef      = useRef(false);
+  const promptInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { promptRef.current = promptOpen; }, [promptOpen]);
+  useEffect(() => {
+    if (promptOpen) promptInputRef.current?.focus();
+  }, [promptOpen]);
+
   // ── carrega sprites uma vez ──
   useEffect(() => {
     loadSprites().then(() => setLoaded(true));
@@ -43,18 +58,52 @@ export const GitRunner: React.FC<Props> = ({ onClose }) => {
   const reset = useCallback(() => {
     stateRef.current = initialState(Math.floor(Math.random() * 9999));
     setStatus("playing");
+    setPromptOpen(false);
+    setAnswer("");
+  }, []);
+
+  // ── conflito: abrir / responder / cancelar ──
+  const openConflict = useCallback(() => {
+    const next = beginConflict(stateRef.current);
+    if (next.status !== "resolving") return;
+    stateRef.current = next;
+    promptRef.current = true;
+    setAnswer("");
+    setPromptOpen(true);
+  }, []);
+
+  const submitAnswer = useCallback((e?: React.FormEvent) => {
+    e?.preventDefault();
+    stateRef.current = resolveConflict(stateRef.current, answer);
+    promptRef.current = false;
+    setPromptOpen(false);
+    setAnswer("");
+  }, [answer]);
+
+  const cancelAnswer = useCallback(() => {
+    stateRef.current = cancelConflict(stateRef.current);
+    promptRef.current = false;
+    setPromptOpen(false);
+    setAnswer("");
   }, []);
 
   // ── input teclado ──
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
+      // com o prompt aberto, quem trata as teclas é o <input>
+      if (promptRef.current) return;
+
       const inp = inputRef.current;
       if (e.code === "ArrowLeft"  || e.code === "KeyA") inp.left  = true;
       if (e.code === "ArrowRight" || e.code === "KeyD") inp.right = true;
       if (e.code === "ArrowUp"    || e.code === "Space" || e.code === "KeyW") inp.jump  = true;
       if (e.code === "Enter") {
         const s = stateRef.current;
-        if (s.status === "gameover" || s.status === "win") reset();
+        if (s.status === "gameover" || s.status === "win") {
+          reset();
+        } else if (canResolveConflict(s)) {
+          openConflict();
+        }
       }
       // fecha com Escape
       if (e.code === "Escape") onClose();
@@ -72,7 +121,7 @@ export const GitRunner: React.FC<Props> = ({ onClose }) => {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup",   up);
     };
-  }, [onClose, reset]);
+  }, [onClose, reset, openConflict]);
 
   // ── game loop ──
   useEffect(() => {
@@ -141,7 +190,7 @@ export const GitRunner: React.FC<Props> = ({ onClose }) => {
           fontSize: 16,
           color: "#8fa6c8",
         }}>
-          ← → mover &nbsp; SPACE pular &nbsp; ESC fechar
+          ← → mover &nbsp; SPACE pular &nbsp; ENTER no ar: conflito &nbsp; ESC fechar
         </span>
         <button
           onClick={onClose}
@@ -184,6 +233,105 @@ export const GitRunner: React.FC<Props> = ({ onClose }) => {
             imageRendering: "pixelated",
           }}
         />
+
+        {/* Prompt de conflito: o jogo fica congelado enquanto isso está aberto */}
+        {promptOpen && (
+          <div style={{
+            position: "absolute", inset: 0,
+            background: "rgba(5,8,14,0.82)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            lineHeight: 1.4,
+          }}>
+            <form
+              onSubmit={submitAnswer}
+              style={{
+                width: 560,
+                background: "#0d1117",
+                border: "3px solid #38c950",
+                borderRadius: 6,
+                padding: "22px 26px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 14,
+                boxShadow: "0 18px 40px rgba(0,0,0,0.7)",
+              }}
+            >
+              <div style={{
+                fontFamily: "'Press Start 2P', monospace",
+                fontSize: 13,
+                color: "#ffd23f",
+                letterSpacing: "0.04em",
+              }}>
+                ⚔ CONFLITO DE MERGE
+              </div>
+
+              <div style={{ fontFamily: "'VT323', monospace", fontSize: 20, color: "#8fa6c8" }}>
+                Digite o comando git que resolve o conflito:
+              </div>
+
+              <input
+                ref={promptInputRef}
+                value={answer}
+                onChange={(e) => setAnswer(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") { e.preventDefault(); cancelAnswer(); }
+                }}
+                autoFocus
+                spellCheck={false}
+                autoComplete="off"
+                placeholder="git rebase origin/main"
+                style={{
+                  background: "#05080e",
+                  border: "2px solid #5eeaff55",
+                  borderRadius: 4,
+                  color: "#5eeaff",
+                  fontFamily: "'VT323', monospace",
+                  fontSize: 22,
+                  padding: "10px 12px",
+                  outline: "none",
+                }}
+              />
+
+              <div style={{ fontFamily: "'VT323', monospace", fontSize: 17, color: "#6b7f9e" }}>
+                aceita: <code>git rebase &lt;branch&gt;</code> · <code>git merge &lt;branch&gt;</code>
+              </div>
+
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  onClick={cancelAnswer}
+                  style={{
+                    background: "transparent",
+                    border: "2px solid #ff5c6c",
+                    color: "#ff5c6c",
+                    fontFamily: "'Press Start 2P', monospace",
+                    fontSize: 10,
+                    padding: "9px 14px",
+                    cursor: "pointer",
+                    borderRadius: 3,
+                  }}
+                >
+                  ESC CANCELAR
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    background: "#38c950",
+                    border: "2px solid #38c950",
+                    color: "#05080e",
+                    fontFamily: "'Press Start 2P', monospace",
+                    fontSize: 10,
+                    padding: "9px 14px",
+                    cursor: "pointer",
+                    borderRadius: 3,
+                  }}
+                >
+                  ENTER RESOLVER
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
       </div>
 
       {/* Controles touch */}
@@ -204,6 +352,7 @@ export const GitRunner: React.FC<Props> = ({ onClose }) => {
           {(status === "gameover" || status === "win") && (
             <TouchBtn label="↺ REINICIAR" onStart={reset} onEnd={() => {}} wide />
           )}
+          <TouchBtn label="⌨ CONFLITO" onStart={openConflict} onEnd={() => {}} />
           <TouchBtn label="▲ PULAR" onStart={doJump} onEnd={() => {}} />
         </div>
       </div>
