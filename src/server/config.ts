@@ -10,15 +10,27 @@ const numberFromEnv = (value: string | undefined, fallback: number): number => {
 
 const currentYear = new Date().getFullYear();
 
+/**
+ * Concorrência do Remotion no render programático.
+ *
+ * O `remotion.config.ts` só vale para o CLI; `renderMedia()` chamado pelo
+ * servidor ignora esse arquivo. Sem um default aqui, o Remotion usa o próprio
+ * default (até 8 workers), o que abre mais páginas do Chrome do que o
+ * necessário. Mantemos 4 para alinhar com o CLI e reduzir CPU/RAM.
+ */
+const concurrencyFromEnv = (): number => {
+  const raw = process.env.REMOTION_CONCURRENCY?.trim();
+  if (!raw) return 4;
+  return Math.max(1, numberFromEnv(raw, 4));
+};
+
 export const serverConfig = {
   host: process.env.HOST || "127.0.0.1",
   port: numberFromEnv(process.env.PORT, 4317),
   defaultUsername: (process.env.DEFAULT_USERNAME || "adalbertobrant").trim(),
   year: numberFromEnv(process.env.YEAR, currentYear),
   videoHeight: numberFromEnv(process.env.VIDEO_HEIGHT, 1080),
-  concurrency: process.env.REMOTION_CONCURRENCY
-    ? Math.max(1, numberFromEnv(process.env.REMOTION_CONCURRENCY, 4))
-    : undefined,
+  concurrency: concurrencyFromEnv(),
   isDev: process.env.NODE_ENV !== "production",
 };
 

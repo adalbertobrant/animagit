@@ -134,7 +134,40 @@ Todas as variáveis são opcionais. O projeto funciona sem nenhuma delas usando 
 | `HOST` | endereço do servidor | `127.0.0.1` |
 | `PORT` | porta do servidor | `4317` |
 | `VIDEO_HEIGHT` | resolução padrão (`1080` ou `720`) | `1080` |
-| `REMOTION_CONCURRENCY` | frames renderizados em paralelo | automático |
+| `REMOTION_CONCURRENCY` | frames renderizados em paralelo | `4` |
+
+---
+
+## Dependências e o override do `zod`
+
+O `npm audit` acusa `zod < 4.6.6` por causa do advisory [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) — *“Zod can exhaust memory while validating oversized constrained collections”* (CWE-770, CVSS 7.5).
+
+Esse `zod` não é dependência direta do projeto. Ele entra pela cadeia de ferramentas do Remotion:
+
+- `@remotion/bundler → @remotion/studio → zod`
+- `@remotion/cli → @remotion/studio-server → zod`
+
+No Remotion, o `zod` valida o schema de props do **Studio** (`get-zod-if-possible`), que roda localmente. O servidor Express e o `renderMedia()` não passam input não confiável por ele, então o risco prático neste projeto é baixo.
+
+Como o `@remotion` 4.0.539 (última versão publicada) pina `zod@4.5.4`, o `npm audit fix` sugere um downgrade para `@remotion/bundler@4.0.277` — o que desalinharia todos os pacotes Remotion. Em vez disso, o `package.json` fixa uma versão corrigida via override:
+
+```json
+"overrides": {
+  "zod": "^4.6.6"
+}
+```
+
+Resultado: `zod@4.6.7` deduplicado e `npm audit` sem vulnerabilidades.
+
+> **Efeito colateral:** o CLI do Remotion pina a versão exata e mostra
+> `Version mismatch: zod: installed 4.6.7, required 4.5.4` ao rodar
+> `npm run studio` ou `npx remotion ...`. É só um aviso; typecheck, Studio e render funcionam.
+
+Quando uma versão do Remotion passar a exigir `zod >= 4.6.6`, remova o override. Para reverter antes disso (e voltar a conviver com o advisory):
+
+```bash
+git checkout package.json package-lock.json && npm ci
+```
 
 ---
 
@@ -447,6 +480,7 @@ npm start       # Express serve dist/web + /videos
 | Porta 4317 ocupada | `fuser -k 4317/tcp && npm run dev` |
 | Sem áudio ou fontes | `npm run setup` |
 | Typecheck falhando | `npm run typecheck` mostra a linha exata |
+| Aviso `Version mismatch: zod` | Esperado pelo override; veja [Dependências e o override do `zod`](#dependências-e-o-override-do-zod) |
 
 ---
 
