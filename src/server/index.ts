@@ -161,6 +161,85 @@ app.post(
 
 app.use("/videos", express.static(PATHS.out, { fallthrough: false, maxAge: "1h" }));
 
+// ── CV routes ─────────────────────────────────────────────────────────
+
+app.post(
+  "/api/cv/generate",
+  asyncRoute(async (req, res) => {
+    const { fetchCvRepos, groupRepos } = await import("./cv-github.js");
+    const { analyzeCv }                = await import("./cv-ats.js");
+    const { generateMarkdown, saveCvFiles } = await import("./cv-render.js");
+    const { mkdir, writeFile }         = await import("node:fs/promises");
+    const { resolve }                  = await import("node:path");
+
+    const body = req.body ?? {};
+    const username = normalizeUsername(String(body.username ?? serverConfig.defaultUsername));
+    const profile  = body.profile;
+    const language = body.language === "en" ? "en" : "pt";
+    const format   = body.format   === "pdf" ? "pdf" : "markdown";
+    const runAts   = body.runAts   !== false;
+
+    if (!profile?.name) {
+      throw new GitHubError("Perfil pessoal obrigatório.", 400);
+    }
+
+    const token = getGithubToken();
+    if (!token) {
+      throw new GitHubError(
+        "GITHUB_TOKEN obrigatório para gerar o currículo. Configure no .env.",
+        400,
+      );
+    }
+
+    const logs: string[] = [];
+    const onLog = (msg: string) => { logs.push(msg); };
+
+    onLog("Iniciando geração do currículo…");
+    const repos  = await fetchCvRepos(username, token, onLog);
+    const groups = groupRepos(repos);
+
+    const cvData: import("../shared/cv-types.js").CvData = {
+      profile,
+      repos,
+      groups,
+      generatedAt: new Date().toISOString(),
+      language: language as import("../shared/cv-types.js").CvLanguage,
+      atsAnalysis: null,
+    };
+
+    if (runAts) {
+      onLog("Analisando ATS…");
+      const openaiKey = process.env.OPENAI_API_KEY;
+      const geminiKey = process.env.GEMINI_API_KEY;
+      cvData.atsAnalysis = await analyzeCv(cvData, openaiKey, geminiKey);
+    }
+
+    // Salva em disco e retorna URL
+    onLog(`Gerando ${format.toUpperCase()}…`);
+    const paths = await saveCvFiles(cvData, format);
+
+    const slug = `${profile.name.toLowerCase().replace(/\s+/g, "-")}-cv-${language}`;
+    const response: Record<string, unknown> = {
+      ok: true,
+      data: cvData,
+      logs,
+    };
+
+    if (paths.markdownPath) {
+      response.markdownUrl  = `/cv/${slug}.md`;
+      response.markdownText = generateMarkdown(cvData);
+    }
+    if (paths.pdfPath) {
+      response.pdfUrl = `/cv/${slug}.pdf`;
+    }
+
+    res.json(response);
+  }),
+);
+
+// Serve os arquivos gerados de CV
+app.use("/cv", express.static(resolve(PATHS.root, "out", "cv"), { fallthrough: false, maxAge: "1h" }));
+
 const start = async () => {
   await loadJobs();
 

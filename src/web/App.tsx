@@ -23,6 +23,7 @@ import {
   type StatsResponse,
 } from "./api";
 import { GitRunner } from "./game/GitRunner";
+import { CvBuilder } from "./cv/CvBuilder";
 
 const THEME_SWATCHES: Record<ThemeId, [string, string, string]> = {
   space: ["#5eeaff", "#ff5cd6", "#ffd166"],
@@ -106,6 +107,7 @@ const StatChip: React.FC<{ label: string; value: string; accent?: boolean }> = (
 
 export const App: React.FC = () => {
   const [gameOpen, setGameOpen] = useState(false);
+  const [cvOpen,   setCvOpen]   = useState(false);
   const [config, setConfig] = useState<ConfigResponse | null>(null);
   const [username, setUsername] = useState("adalbertobrant");
   const [stats, setStats] = useState<StatsResponse | null>(null);
@@ -277,6 +279,26 @@ export const App: React.FC = () => {
         <div className="topbar-meta">
           <span className="chip chip-local">100% local</span>
           <span className="topbar-year">{year}</span>
+          {/* Botão de currículo */}
+          <button
+            onClick={() => setCvOpen(true)}
+            style={{
+              background: "transparent",
+              border: "1px solid #388bfd66",
+              borderRadius: 6,
+              color: "#388bfd",
+              padding: "5px 13px",
+              fontSize: 12,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+            }}
+            aria-label="Gerar currículo"
+          >
+            📄 CV
+          </button>
           {statsForYear ? (
             <a
               className="topbar-user"
@@ -732,6 +754,14 @@ export const App: React.FC = () => {
 
       {/* ── Overlay do jogo ── */}
       {gameOpen && <GitRunner onClose={() => setGameOpen(false)} />}
+
+      {/* ── Overlay do currículo ── */}
+      {cvOpen && (
+        <CvBuilder
+          username={statsForYear?.login ?? username}
+          onClose={() => setCvOpen(false)}
+        />
+      )}
 
       <footer className="footer">
         <span>
