@@ -3,6 +3,8 @@ dist/
 .remotion-bundle/
 out/
 data/jobs.json
+data/cache/
+data/avatars/
 .env
 .DS_Store
 *.log
