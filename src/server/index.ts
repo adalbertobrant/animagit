@@ -226,19 +226,22 @@ app.post(
     };
 
     if (paths.markdownPath) {
-      response.markdownUrl  = `/cv/${slug}.md`;
+      response.markdownUrl  = `/cv-files/${slug}.md`;
       response.markdownText = generateMarkdown(cvData);
     }
     if (paths.pdfPath) {
-      response.pdfUrl = `/cv/${slug}.pdf`;
+      response.pdfUrl = `/cv-files/${slug}.pdf`;
     }
 
     res.json(response);
   }),
 );
 
-// Serve os arquivos gerados de CV
-app.use("/cv", express.static(resolve(PATHS.root, "out", "cv"), { fallthrough: false, maxAge: "1h" }));
+// Serve os arquivos gerados de CV — prefixo /cv-files/ para não colidir com rotas do SPA
+app.use(
+  "/cv-files",
+  express.static(resolve(PATHS.root, "out", "cv"), { fallthrough: true, maxAge: "1h" }),
+);
 
 const start = async () => {
   await loadJobs();
@@ -254,7 +257,7 @@ const start = async () => {
   } else {
     app.use(express.static(PATHS.webDist, { index: false }));
     app.get("*", (req, res, next) => {
-      if (req.path.startsWith("/api/") || req.path.startsWith("/videos/")) return next();
+      if (req.path.startsWith("/api/") || req.path.startsWith("/videos/") || req.path.startsWith("/cv-files/")) return next();
       res.sendFile(resolve(PATHS.webDist, "index.html"));
     });
   }
