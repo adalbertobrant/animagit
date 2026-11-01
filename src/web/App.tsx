@@ -287,13 +287,13 @@ export const App: React.FC = () => {
               border: "1px solid #388bfd66",
               borderRadius: 6,
               color: "#388bfd",
-              padding: "5px 13px",
-              fontSize: 12,
+              padding: "8px 20px",
+              fontSize: 16,
               cursor: "pointer",
               fontFamily: "inherit",
               display: "flex",
               alignItems: "center",
-              gap: 5,
+              gap: 8,
             }}
             aria-label="Gerar currículo"
           >
